@@ -74,11 +74,12 @@ export class FalabellaDiscoveryHandler implements DiscoveryHandler {
         // Extract Level 2 (Immediate children in the panel)
         // Just the links inside the scroll container.
         // We verified `div[class*="scrollContainer"] a[href*="/category/"]` works.
-        // Important: We only want unique names at Level 2, and maybe avoid "Ver todo" links.
+        // Based on browser inspection, main subcategories (e.g. "TV", "Audio") have a specific class:
+        // SecondLevelCategories-module_link__...
+        // We use a partial match to be safe.
+        const visibleLinks = await page.locator('div[class*="scrollContainer"] a[class*="SecondLevelCategories-module_link"]').all();
 
         const subcategories: CategoryNode[] = [];
-        const visibleLinks = await page.locator('div[class*="scrollContainer"] a[href*="/category/"]').all();
-
         const seenUrls = new Set<string>();
 
         for (const link of visibleLinks) {
@@ -87,15 +88,15 @@ export class FalabellaDiscoveryHandler implements DiscoveryHandler {
                 let text = await link.innerText();
                 text = text.replace(/\n/g, ' ').trim();
 
-                if (url && text && !seenUrls.has(url)) {
-                    // Filter out "Ver todo" or similar if needed, but usually they are valid category links too.
+                // Exclude "Ver todo" explicitly if it shares the class (unlikely but safe)
+                if (url && text && !seenUrls.has(url) && !text.toLowerCase().includes('ver todo')) {
                     const key = `https://www.falabella.com${url}`;
                     seenUrls.add(url);
 
                     subcategories.push({
                         name: text,
                         url: url.startsWith('http') ? url : `https://www.falabella.com${url}`,
-                        children: [], // User said "no more nested"
+                        children: [],
                         depth: 2
                     });
                 }
